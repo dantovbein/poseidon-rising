@@ -87,8 +87,7 @@ Game.prototype = {
 		this.game.load.bitmapFont('fat-and-tiny', 'assets/fonts/fat-and-tiny.png', 'assets/fonts/fat-and-tiny.xml');
 
         this.game.load.image(this.BACKGROUND_OVERLAP,'assets/images/background-overlap.png');
-       
-        this.game.load.image(this.WAVES,'assets/images/waves.png');
+       	this.game.load.image(this.WAVES,'assets/images/waves.png');
         
         this.game.load.image(this.COUNTDOWN_1,'assets/images/countdown-1.png');
 		this.game.load.image(this.COUNTDOWN_2,'assets/images/countdown-2.png');
