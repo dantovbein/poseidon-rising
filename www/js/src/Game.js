@@ -66,6 +66,8 @@ function Game(config) {
 
 	this.middle = this.game.width / 2;
 	this.mouseX = 0;
+
+	this.isDebug = true;
 }
 
 Game.prototype.constructor = Game;
@@ -263,6 +265,9 @@ Game.prototype = {
     	this.character.animations.play('movement', 5, true);
 		
 	},
+	releaseEnemy: function(x,y,type) {
+
+	},
 	releaseEnemies: function(y,yDistance) {
 		// reset enemies
 		this.enemiesGroup.forEachAlive(function(e){
@@ -380,16 +385,18 @@ Game.prototype = {
 		this.game.physics.arcade.overlap(this.character, this.bonusGroup, this.getBonusCollision, this.overlapHandler, this);
 	},
 	render: function() {
-		//this.game.debug.cameraInfo(this.game.camera, 32, 32);
-		//this.game.debug.body(this.character);
-		
-		/*this.enemiesGroup.forEachAlive(function(enemy){
-		    this.game.debug.body(enemy);
-		},this);*/
+		if(this.isDebug) {
+			this.game.debug.cameraInfo(this.game.camera, 32, 32);
+			this.game.debug.body(this.character);
+			
+			this.enemiesGroup.forEachAlive(function(enemy){
+			    this.game.debug.body(enemy);
+			},this);
 
-		/*this.bonusGroup.forEachAlive(function(bonus){
-		    this.game.debug.body(bonus);
-		},this);*/
+			this.bonusGroup.forEachAlive(function(bonus){
+			    this.game.debug.body(bonus);
+			},this);
+		}
 	},
 	overlapHandler: function(character,enemy) {
 		return (enemy.key == this.TENTACLES || 
