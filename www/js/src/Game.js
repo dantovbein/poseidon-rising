@@ -61,13 +61,18 @@ function Game(config) {
 	this.randomEnemies = [];
 	this.randomFlags = [];
 
-	this.volume = 1;
+	this.volume = 0;
 	this.startGame = false;
 
 	this.middle = this.game.width / 2;
 	this.mouseX = 0;
 
 	this.isDebug = true;
+
+	this.lastPosX = 0;
+	this.lastPosY = 0;
+	this.lastEnemyWidth = 0;
+	this.lastEnemyHeight = 0;
 }
 
 Game.prototype.constructor = Game;
@@ -218,6 +223,14 @@ Game.prototype = {
 			this.timerGame = this.game.time.create(false);
 			this.timerGame.loop(1000, this.onGameTimer, this);
 			this.timerGame.start();
+
+			this.timerReleaseEnemies = this.game.time.create(false);
+			this.timerReleaseEnemies.loop(300,this.releaseEnemy,this);
+			this.timerReleaseEnemies.start();
+
+			//this.timerReleaseFlags = this.game.time.create(false);
+			//this.timerReleaseFlags.loop(300,this.releaseEnemy,this);
+			//this.timerReleaseFlags.start();
 		}
 	},
 	onGameTimer: function() {
@@ -239,8 +252,8 @@ Game.prototype = {
 		console.log("Proxima distancia " + desiredLevelDistance);
 		console.log("Altura del world " + this.game.world.height);*/
 		this.game.world.resize(this.STAGE_WIDTH, this.game.world.height + desiredLevelDistance);
-		this.releaseEnemies(this.game.camera.y, desiredLevelDistance);
-		this.releaseFlags(this.game.camera.y, desiredLevelDistance);
+		//this.releaseEnemies(this.game.camera.y, desiredLevelDistance);
+		//this.releaseFlags(this.game.camera.y, desiredLevelDistance);
 		//console.log("Enemigos: " + this.enemiesGroup.length, " flags: ", this.bonusGroup.length);		
 	},
 	generateRandoms: function(total,totalTypes) {
@@ -265,8 +278,44 @@ Game.prototype = {
     	this.character.animations.play('movement', 5, true);
 		
 	},
-	releaseEnemy: function(x,y,type) {
+	releaseEnemy: function() {
+		var type = this.rnd.pick([this.BUILDING_CORNER, this.HAZARD, this.RUIN, this.TENTACLES, this.TOWER, this.BROKEN_TOWER,this.BUILDING_CORNER, this.HAZARD, this.RUIN, this.TENTACLES, this.TOWER, this.BROKEN_TOWER, this.FLAGS_1, this.FLAGS_2]);
+		var posX = this.game.rnd.integerInRange(0,this.game.width);
+		var posY = this.game.camera.y + 400;
 
+		var enemy = this.enemiesGroup.create(posX, posY, type);
+		enemy.anchor.set(0,0);
+       	var newPosX = this.getPosX(this.lastPosX, this.lastPosX + this.lastEnemyWidth, posX); 
+      	enemy.x = (newPosX + enemy.width > this.game.width) ? this.game.width - enemy.width : newPosX;
+       	enemy.name = type;
+       	enemy.body.collideWorldBounds = true;
+       	/*switch(enemy.name) {
+       		case this.TENTACLES:
+       			enemy.body.setSize(105,10,28,106);
+       			break;
+       		case this.TOWER:
+       			enemy.body.setSize(44,18,10,147);
+       			break;
+       		case this.BROKEN_TOWER:
+       			enemy.body.setSize(44,18,10,147);
+       			break;
+       		case this.BUILDING_CORNER:
+       			enemy.body.setSize(62,20,18,30);
+       			break;
+       		case this.RUIN:
+       			enemy.body.setSize(76,20,26,40);
+       			break;
+       		case this.HAZARD:
+       			enemy.body.setSize(35,21,8,50);
+       			break;	
+       	}*/
+		
+       	enemy.body.immovable = true;
+
+       	this.lastPosX = newPosX;
+       	this.lastPosY = posY;
+       	this.lastEnemyWidth = enemy.width;
+       	this.lastEnemyHeight = enemy.height;
 	},
 	releaseEnemies: function(y,yDistance) {
 		// reset enemies
@@ -282,6 +331,7 @@ Game.prototype = {
 		var randomY;
 		var enemy;
 		this.randomEnemies = this.generateRandoms(this.TOTAL_ENEMIES_FOR_LEVEL,this.TYPE_OF_ENEMIES.length);
+
     	window._.each(this.randomEnemies,function(ind){
     		randomY = Math.floor(Math.random() * (yDistance - y)) + y;
     		enemy = this.enemiesGroup.create(this.game.world.randomX, randomY + this.game.height,  this.TYPE_OF_ENEMIES[ind].name, this.game.rnd.integerInRange(0, 36));
@@ -335,33 +385,30 @@ Game.prototype = {
 	       	bonus.animations.add(this.TURN_ON_LIGHTS);
 		},this);
 	},
+	getPosX: function(n1,n2,n3) {
+		return (n3 >= n1 && n3 <= n2) ? n2 : n3;
+	},
 	update: function() {
 		if(!this.startGame) return;
 
 		if (!this.character.alive)
         {
             this.character.body.velocity.x = 0;
+            this.timerReleaseEnemies.stop();
             return;
         }
 		
 		// Mouse
 		var d = this.physics.arcade.distanceToXY(this.character, this.input.activePointer.x, this.character.y) * 2;
 
-        if (this.input.x < this.character.x - 20)
-        {
+        /*if (this.input.x < this.character.x - 20) {
             this.character.body.velocity.x = -d;
-        }
-        else if (this.input.x > this.character.x + 20)
-        {
+        } else if (this.input.x > this.character.x + 20) {
             this.character.body.velocity.x = d;
-        }
-        else
-        {
-			// todo nothing
-        }
+        } else { }*/
 
         // Keyboard
-		/*if(this.rightKey.isDown) {
+		if(this.rightKey.isDown) {
 			this.character.body.velocity.x += (this.currentSpeed + 7);
 			this.character.angle = -20;
 		} else if (this.leftKey.isDown) {
@@ -370,7 +417,7 @@ Game.prototype = {
 		} else if(this.downKey.isDown) {
 		} else {
 			this.character.angle = 0;
-		}*/
+		}
 
         this.game.camera.y += this.currentSpeed;
 		this.character.y = this.game.camera.y + this.INITIAL_POS_Y_SKI;
@@ -410,6 +457,7 @@ Game.prototype = {
 				);
 	},
 	getEnemyOverlap: function(character,enemy) {
+		return;
 		enemy.body.destroy();
 		this.character.alive = false;
 		this.jetSkiSound.pause();
@@ -417,6 +465,7 @@ Game.prototype = {
 		this.game.sound.play('crash');
 	},
 	getBonusCollision: function(character,bonus) {
+		return;
 		bonus.animations.play(this.TURN_ON_LIGHTS, 60, false);
 		var typeOfBonus = window._.filter(this.TYPE_OF_BONUS,function(b){
 			return b.name == bonus.name;
