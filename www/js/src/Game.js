@@ -10,6 +10,7 @@ function Game(config) {
 	this.TOTAL_ENEMIES_FOR_LEVEL = 10;
 	this.TOTAL_BONUS_FOR_LEVEL = this.TOTAL_ENEMIES_FOR_LEVEL * 0.35;
 	this.LEVEL_TIME = 5;
+	this.TIME_RELEASE_ITEMS = 400;
 
 	this.INITIAL_POS_Y_START = 130; 
 	this.INITIAL_POS_Y_SKI = this.INITIAL_POS_Y_START + 55;
@@ -45,13 +46,13 @@ function Game(config) {
 							{ name: this.BUILDING_CORNER, path: "assets/images/building-corner.png"}];
 
 	this.TYPE_OF_BONUS = [{ name: this.FLAGS_1, path: "assets/images/flags1.png", w:152, h:39, points:5 },
-						  { name: this.FLAGS_2, path: "assets/images/flags2.png", w:92, h:35, points:7 }];
+						  { name: this.FLAGS_2, path: "assets/images/flags2.png", w:93, h:35, points:7 }];
 	
 	this.score = 0;
 	
 	this.initialSpeed = 5;
 	this.currentSpeed = this.initialSpeed;
-	this.aceleration = 0.25;
+	this.aceleration = 0.10;
 	this.level = 1;
 	this.angle = 1;
 	this.gameTime = 0;
@@ -61,18 +62,25 @@ function Game(config) {
 	this.randomEnemies = [];
 	this.randomFlags = [];
 
-	this.volume = 0;
+	this.volume = 1;
 	this.startGame = false;
 
 	this.middle = this.game.width / 2;
 	this.mouseX = 0;
 
-	this.isDebug = true;
+	this.isDebug = !true;
 
-	this.lastPosX = 0;
-	this.lastPosY = 0;
-	this.lastEnemyWidth = 0;
-	this.lastEnemyHeight = 0;
+	this.lastItemName = "";
+	this.lastItemPosX = 0;
+	this.lastItemPosY = 0;
+	this.lastItemWidth = 0;
+	this.lastItemHeight = 0;
+	this.lastItem;
+
+	this.lastCameraY = 0;
+	this.distance = 0;
+	
+	this.fps = 0;
 }
 
 Game.prototype.constructor = Game;
@@ -113,6 +121,8 @@ Game.prototype = {
     	},this);
 
     	this.game.load.spritesheet(this.CHARACTER, 'assets/images/jetski.png', 82, 95, 2);
+
+    	this.game.time.advancedTiming = true;
     	
     },
     loadSounds: function() {
@@ -159,7 +169,12 @@ Game.prototype = {
 		this.enemiesGroup = this.game.add.group();
 		this.enemiesGroup.physicsBodyType = Phaser.Physics.ARCADE;
 		this.enemiesGroup.y = this.INITIAL_POS_Y_ENEMIES;
-		this.enemiesGroup.enableBody = true;		
+		this.enemiesGroup.enableBody = true;
+
+		/*this.itemsGroup = this.game.add.group();
+		this.itemsGroup.physicsBodyType = Phaser.Physics.ARCADE;
+		this.itemsGroup.y = this.game.height;
+		this.itemsGroup.enableBody = true;*/
 
 		this.getLevelDistance();
 
@@ -224,9 +239,9 @@ Game.prototype = {
 			this.timerGame.loop(1000, this.onGameTimer, this);
 			this.timerGame.start();
 
-			this.timerReleaseEnemies = this.game.time.create(false);
-			this.timerReleaseEnemies.loop(300,this.releaseEnemy,this);
-			this.timerReleaseEnemies.start();
+			this.timerReleaseItems = this.game.time.create(false);
+			this.timerReleaseItems.loop(this.TIME_RELEASE_ITEMS,this.releaseItem,this);
+			this.timerReleaseItems.start();
 
 			//this.timerReleaseFlags = this.game.time.create(false);
 			//this.timerReleaseFlags.loop(300,this.releaseEnemy,this);
@@ -242,7 +257,7 @@ Game.prototype = {
 		} 
 	},
 	getLevelDistance: function() {
-		var desiredLevelDistance = this.game.camera.y + (this.currentSpeed * this.game.time.desiredFps * this.LEVEL_TIME);
+		var desiredLevelDistance = this.game.camera.y + (this.currentSpeed * this.fps * this.LEVEL_TIME);
 		/*console.log("-----");
 		console.log("Nivel " + this.level);
 		console.log("camara pos y " + this.game.camera.y);
@@ -278,54 +293,77 @@ Game.prototype = {
     	this.character.animations.play('movement', 5, true);
 		
 	},
-	releaseEnemy: function() {
-		var type = this.rnd.pick([this.BUILDING_CORNER, this.HAZARD, this.RUIN, this.TENTACLES, this.TOWER, this.BROKEN_TOWER,this.BUILDING_CORNER, this.HAZARD, this.RUIN, this.TENTACLES, this.TOWER, this.BROKEN_TOWER, this.FLAGS_1, this.FLAGS_2]);
+	releaseItem: function() {
+		if(this.lastItem) {
+			if(this.lastItem.y < this.game.camera.y) {
+				this.lastItem.kill();
+			}
+		}
+		this.distance = this.game.camera.y - this.lastCameraY;
+		//var type = this.rnd.pick([this.FLAGS_1, this.FLAGS_2]);
+		var type = this.rnd.pick([this.BUILDING_CORNER, this.HAZARD, this.RUIN, this.TENTACLES, this.TOWER, this.BROKEN_TOWER, this.FLAGS_1, this.FLAGS_2]);
 		var posX = this.game.rnd.integerInRange(0,this.game.width);
-		var posY = this.game.camera.y + 400;
+		var posY = this.game.camera.y + this.distance + this.lastItemHeight;
+		var newPosY = (this.game.camera.y < this.lastItemPosY) ? this.lastItemPosY + this.distance + this.lastItemHeight : posY;
+		var item;
+		if(type == this.TENTACLES || type == this.TOWER || type == this.BROKEN_TOWER || type == this.BUILDING_CORNER || type == this.RUIN || type == this.HAZARD ) {
+			item = this.enemiesGroup.create(posX, posY, type);
+		}  
 
-		var enemy = this.enemiesGroup.create(posX, posY, type);
-		enemy.anchor.set(0,0);
-       	var newPosX = this.getPosX(this.lastPosX, this.lastPosX + this.lastEnemyWidth, posX); 
-      	enemy.x = (newPosX + enemy.width > this.game.width) ? this.game.width - enemy.width : newPosX;
-       	enemy.name = type;
-       	enemy.body.collideWorldBounds = true;
-       	/*switch(enemy.name) {
+		if(type == this.FLAGS_1 || type == this.FLAGS_2){
+			item = this.bonusGroup.create(posX, posY, type);
+			item.animations.add(this.TURN_ON_LIGHTS);
+		}		
+		item.anchor.set(0,0);
+       	var newPosX = this.getPosX(this.lastItemPosX, this.lastItemPosX + this.lastItemWidth, posX); 
+      	item.x = (newPosX + item.width > this.game.width) ? this.game.width - item.width : newPosX;
+       	item.y = newPosY; 
+       	item.name = type;
+       	item.body.collideWorldBounds = true;
+
+       	switch(item.name) {
        		case this.TENTACLES:
-       			enemy.body.setSize(105,10,28,106);
+       			item.body.setSize(105,10,28,106);
        			break;
        		case this.TOWER:
-       			enemy.body.setSize(44,18,10,147);
+       			item.body.setSize(44,18,10,147);
        			break;
        		case this.BROKEN_TOWER:
-       			enemy.body.setSize(44,18,10,147);
+       			item.body.setSize(44,18,10,147);
        			break;
        		case this.BUILDING_CORNER:
-       			enemy.body.setSize(62,20,18,30);
+       			item.body.setSize(62,20,18,30);
        			break;
        		case this.RUIN:
-       			enemy.body.setSize(76,20,26,40);
+       			item.body.setSize(76,20,26,40);
        			break;
        		case this.HAZARD:
-       			enemy.body.setSize(35,21,8,50);
+       			item.body.setSize(35,21,8,50);
+       			break;
+       		case this.FLAGS_1:
+       			item.body.setSize(126,21,8,1);
        			break;	
-       	}*/
+       		case this.FLAGS_2:
+       			item.body.setSize(66,20,8,1);
+       			break;	
+       	}
 		
-       	enemy.body.immovable = true;
+       	item.body.immovable = true;
 
-       	this.lastPosX = newPosX;
-       	this.lastPosY = posY;
-       	this.lastEnemyWidth = enemy.width;
-       	this.lastEnemyHeight = enemy.height;
+       	this.lastItem = item;
+       	this.lastItemName = item.name;
+       	this.lastItemPosX = item.x;
+       	this.lastItemPosY = item.y;
+       	this.lastItemWidth = item.width;
+       	this.lastItemHeight = item.height;
+       	this.lastCameraY = this.game.camera.y;
 	},
 	releaseEnemies: function(y,yDistance) {
 		// reset enemies
 		this.enemiesGroup.forEachAlive(function(e){
 			if(e.y < (y - this.game.height)) {
 				e.kill();
-				//console.log("Elimino enemigo");
-			} else {
-				//console.log("No elimino enemigo");
-			}
+			} else { }
 		},this);
 
 		var randomY;
@@ -366,10 +404,7 @@ Game.prototype = {
 		this.bonusGroup.forEachAlive(function(e){
 			if(e.y < (y - this.game.height)) {
 				e.kill();
-				//console.log("Elimino flag");
-			} else {
-				//console.log("No elimino flag");
-			}
+			} else { }
 		},this);
 
 		var bonus;
@@ -391,24 +426,26 @@ Game.prototype = {
 	update: function() {
 		if(!this.startGame) return;
 
+		this.fps = this.game.time.fps;
+
 		if (!this.character.alive)
         {
             this.character.body.velocity.x = 0;
-            this.timerReleaseEnemies.stop();
+            this.timerReleaseItems.stop();
             return;
         }
 		
 		// Mouse
 		var d = this.physics.arcade.distanceToXY(this.character, this.input.activePointer.x, this.character.y) * 2;
 
-        /*if (this.input.x < this.character.x - 20) {
+        if (this.input.x < this.character.x - 20) {
             this.character.body.velocity.x = -d;
         } else if (this.input.x > this.character.x + 20) {
             this.character.body.velocity.x = d;
-        } else { }*/
+        } else { }
 
         // Keyboard
-		if(this.rightKey.isDown) {
+		/*if(this.rightKey.isDown) {
 			this.character.body.velocity.x += (this.currentSpeed + 7);
 			this.character.angle = -20;
 		} else if (this.leftKey.isDown) {
@@ -417,7 +454,9 @@ Game.prototype = {
 		} else if(this.downKey.isDown) {
 		} else {
 			this.character.angle = 0;
-		}
+		}*/
+
+		//this.distance = this.currentSpeed * this.game.time.fps * this.LEVEL_TIME;
 
         this.game.camera.y += this.currentSpeed;
 		this.character.y = this.game.camera.y + this.INITIAL_POS_Y_SKI;
@@ -430,6 +469,7 @@ Game.prototype = {
 
 		this.game.physics.arcade.overlap(this.character, this.enemiesGroup, this.getEnemyOverlap, this.overlapHandler, this);
 		this.game.physics.arcade.overlap(this.character, this.bonusGroup, this.getBonusCollision, this.overlapHandler, this);
+		//this.game.physics.arcade.overlap(this.character, this.itemsGroup, this.getItemCollision, this.overlapHandler, this);
 	},
 	render: function() {
 		if(this.isDebug) {
@@ -457,7 +497,6 @@ Game.prototype = {
 				);
 	},
 	getEnemyOverlap: function(character,enemy) {
-		return;
 		enemy.body.destroy();
 		this.character.alive = false;
 		this.jetSkiSound.pause();
@@ -465,7 +504,6 @@ Game.prototype = {
 		this.game.sound.play('crash');
 	},
 	getBonusCollision: function(character,bonus) {
-		return;
 		bonus.animations.play(this.TURN_ON_LIGHTS, 60, false);
 		var typeOfBonus = window._.filter(this.TYPE_OF_BONUS,function(b){
 			return b.name == bonus.name;
@@ -474,5 +512,24 @@ Game.prototype = {
 		this.game.sound.play('hit-object');
 		this.scoreText.text = this.score;
 		bonus.body.destroy();
+	},
+	getItemCollision: function(character,item) {
+		if(item.name == this.TENTACLES || item.name == this.TOWER || item.name == this.BROKEN_TOWER	|| item.name == this.BUILDING_CORNER || item.name == this.RUIN || item.name == this.HAZARD ) {
+			item.body.destroy();
+			this.character.alive = false;
+			this.jetSkiSound.pause();
+			this.timerGame.stop();
+			this.game.sound.play('crash');
+		} 
+		if(item.name == this.FLAGS_1 || item.name == this.FLAGS_2){
+			item.animations.play(this.TURN_ON_LIGHTS, 60, false);
+			var typeOfBonus = window._.filter(this.TYPE_OF_BONUS,function(b){
+				return b.name == item.name;
+			});
+			this.score += typeOfBonus[0].points;
+			this.game.sound.play('hit-object');
+			this.scoreText.text = this.score;
+			item.body.destroy();
+		}		
 	}
 };
